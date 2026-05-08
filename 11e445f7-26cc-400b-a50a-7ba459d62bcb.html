@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AirHub Mission Generator</title>
+<style>
+  :root {
+    --bg: #0d0f11;
+    --surface: #161a1e;
+    --surface2: #1e2328;
+    --border: #2a2f36;
+    --border2: #353c45;
+    --text: #e8eaed;
+    --text2: #8b9099;
+    --text3: #565c66;
+    --accent: #4a9eff;
+    --accent-dim: #1a3a5c;
+    --danger: #ff4d4d;
+    --danger-dim: #3d1212;
+    --warning: #f5a623;
+    --warning-dim: #3d2a05;
+    --success: #3ddc84;
+    --radius: 6px;
+    --radius-lg: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  .shell { max-width: 1120px; margin: 0 auto; }
+
+  .header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1.75rem; padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; gap: 10px;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+  .logo {
+    width: 36px; height: 36px; background: var(--accent);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .logo svg { width: 20px; height: 20px; fill: #fff; }
+
+  .title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--text); }
+  .subtitle { font-size: 11px; color: var(--text3); margin-top: 2px; letter-spacing: 0.04em; }
+
+  .version {
+    font-size: 10px; color: var(--text3);
+    border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 9px; letter-spacing: 0.05em;
+  }
+
+  .btn-icon {
+    height: 30px; min-width: 30px; padding: 0 9px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text2);
+    cursor: pointer; font-size: 11px; font-family: inherit;
+    display: flex; align-items: center; gap: 5px;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-icon:hover { border-color: var(--border2); color: var(--text); }
+  .btn-icon:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+  .btn-icon svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+
+  .preset-bar { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .preset-bar-label { font-size: 10px; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; margin-right: 2px; }
+
+  .preset-btn {
+    height: 26px; padding: 0 11px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; color: var(--text3);
+    cursor: pointer; font-size: 10px; font-family: inherit;
+    letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.15s;
+  }
+  .preset-btn:hover, .preset-btn.active {
+    border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
+  }
+
+  .app-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 2rem; align-items: start;
+  }
+  @media (max-width: 860px) {
+    .app-layout { grid-template-columns: 1fr; }
+    .sidebar { position: static !important; }
+  }
+
+  .sidebar { position: sticky; top: 2rem; display: flex; flex-direction: column; gap: 12px; }
+
+  .section { margin-bottom: 1.5rem; }
+
+  .section-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .section-label .sa {
+    cursor: pointer; font-size: 13px; line-height: 1;
+    transition: transform 0.2s; display: inline-block;
+  }
+  .section-label .sa.open { transform: rotate(90deg); }
+
+  .collapsible { overflow: hidden; transition: max-height 0.25s ease; }
+  .collapsible.closed { max-height: 0 !important; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label {
+    font-size: 10px; font-weight: 500;
+    color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase;
+  }
+
+  input[type="number"],
+  input[type="text"],
+  select, textarea {
+    height: 36px; padding: 0 10px;
+    font-size: 12px; font-family: inherit;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); width: 100%;
+    transition: border-color 0.15s; -moz-appearance: textfield;
+  }
+  textarea { height: auto; padding: 8px 10px; resize: vertical; min-height: 56px; }
+  select {
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23565c66' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent); background: var(--surface2);
+  }
+  input[readonly] { color: var(--text3); cursor: default; }
+
+  .ring-card {
+    margin-bottom: 8px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px;
+  }
+  .ring-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .ring-name {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text3); display: flex; align-items: center; gap: 6px;
+  }
+  .ring-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .ring-acts { display: flex; gap: 4px; }
+  .ring-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  .btn-xs {
+    height: 26px; padding: 0 8px;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text3);
+    cursor: pointer; font-size: 10px; font-family: inherit;
+    display: flex; align-items: center; gap: 3px; transition: all 0.15s;
+  }
+  .btn-xs:hover { border-color: var(--border2); color: var(--text2); }
+  .btn-xs:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+  .btn-xs.danger:hover { background: var(--danger-dim); border-color: var(--danger); color: var(--danger); }
+
+  .btn-add {
+    width: 100%; height: 32px;
+    background: transparent; border: 1px dashed var(--border2);
+    border-radius: var(--radius); color: var(--text3);
+    cursor: pointer; font-size: 11px; font-family: inherit;
+    letter-spacing: 0.05em; transition: all 0.15s; margin-top: 4px;
+  }
+  .btn-add:hover { border-style: solid; border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; }
+  .toggle-label { font-size: 12px; color: var(--text2); }
+
+  .toggle {
+    width: 40px; height: 22px; border-radius: 11px;
+    background: var(--border2); border: 1px solid var(--border2);
+    cursor: pointer; position: relative; transition: all 0.2s; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent); border-color: var(--accent); }
+  .toggle::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--text3); transition: transform 0.2s, background 0.2s;
+  }
+  .toggle.on::after { transform: translateX(18px); background: #fff; }
+
+  .seg {
+    display: flex; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  }
+  .seg-btn {
+    flex: 1; height: 34px; background: transparent;
+    border: none; border-right: 1px solid var(--border);
+    color: var(--text3); font-size: 11px; font-family: inherit;
+    letter-spacing: 0.04em; cursor: pointer; transition: all 0.15s;
+  }
+  .seg-btn:last-child { border-right: none; }
+  .seg-btn.on { background: var(--accent-dim); color: var(--accent); }
+  .seg-btn:hover:not(.on) { background: var(--surface2); color: var(--text2); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 9px 11px;
+  }
+  .stat-label { font-size: 9px; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-size: 17px; font-weight: 600; color: var(--text); line-height: 1; }
+  .stat-unit { font-size: 9px; color: var(--text3); font-weight: 400; margin-left: 1px; }
+
+  .map-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+  }
+  .map-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 11px; border-bottom: 1px solid var(--border);
+  }
+  .map-hdr-title { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; }
+  #mapCanvas { display: block; width: 100%; aspect-ratio: 1; }
+
+  .err-list { display: flex; flex-direction: column; gap: 4px; }
+  .err-item {
+    font-size: 11px; padding: 7px 10px; border-radius: var(--radius);
+    background: var(--danger-dim); border: 1px solid var(--danger); color: var(--danger);
+  }
+  .warn-item { background: var(--warning-dim); border-color: var(--warning); color: var(--warning); }
+
+  .fmt-tabs {
+    display: flex; gap: 3px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 3px;
+  }
+  .fmt-tab {
+    flex: 1; height: 26px; background: transparent; border: none;
+    border-radius: 4px; color: var(--text3); font-size: 10px; font-family: inherit;
+    letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; transition: all 0.15s;
+  }
+  .fmt-tab.on { background: var(--accent); color: #fff; }
+  .fmt-tab:hover:not(.on) { background: var(--surface2); color: var(--text2); }
+
+  .btn-generate {
+    width: 100%; height: 44px;
+    background: var(--accent); border: none;
+    border-radius: var(--radius-lg); color: #fff;
+    font-size: 13px; font-weight: 600; font-family: inherit;
+    letter-spacing: 0.04em; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-generate:hover { opacity: 0.88; }
+  .btn-generate:active { transform: scale(0.99); }
+  .btn-generate:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-generate svg { width: 15px; height: 15px; fill: none; stroke: #fff; stroke-width: 2; }
+
+  .btn-preview {
+    width: 100%; height: 34px;
+    background: transparent; border: 1px solid var(--border2);
+    border-radius: var(--radius-lg); color: var(--text2);
+    font-size: 11px; font-family: inherit; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: all 0.15s;
+  }
+  .btn-preview:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .btn-preview svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.75); z-index: 100;
+    align-items: center; justify-content: center; padding: 2rem;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius-lg); width: 100%; max-width: 640px;
+    max-height: 80vh; display: flex; flex-direction: column;
+  }
+  .modal-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 15px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .modal-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .modal-body { flex: 1; overflow-y: auto; padding: 15px; }
+  .modal-ftr {
+    display: flex; gap: 7px; padding: 13px 15px;
+    border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .modal-ftr .btn-icon { flex: 1; justify-content: center; height: 34px; }
+  pre.code-pre {
+    font-family: inherit; font-size: 11px; color: var(--text2);
+    white-space: pre-wrap; word-break: break-all; line-height: 1.6;
+  }
+
+  .flash {
+    position: fixed; bottom: 2rem; left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--success); color: var(--success);
+    border-radius: var(--radius-lg); padding: 9px 18px;
+    font-size: 12px; letter-spacing: 0.04em;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap;
+  }
+  .flash.show { opacity: 1; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+  .mt8 { margin-top: 8px; }
+  .mt10 { margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.5 10.7 8 12 4.5-1.3 8-6.5 8-12V6l-8-4z"/></svg>
+      </div>
+      <div>
+        <div class="title">AirHub Mission Generator</div>
+        <div class="subtitle">PHOTOGRAMMETRY &middot; CIRCULAR ORBIT &middot; MULTI-RING</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon" id="btn-undo" onclick="undo()" disabled>
+        <svg viewBox="0 0 24 24"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>Undo
+      </button>
+      <button class="btn-icon" id="btn-redo" onclick="redo()" disabled>
+        <svg viewBox="0 0 24 24"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>Redo
+      </button>
+      <button class="btn-icon" onclick="exportSettings()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Export
+      </button>
+      <label class="btn-icon" style="cursor:pointer">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Import
+        <input type="file" accept=".json" style="display:none" onchange="importSettings(this)">
+      </label>
+      <div class="version">v2.0</div>
+    </div>
+  </div>
+
+  <div class="preset-bar">
+    <span class="preset-bar-label">Presets:</span>
+    <button class="preset-btn" onclick="loadPreset('tower')">Tower</button>
+    <button class="preset-btn" onclick="loadPreset('flareStack')">Flare Stack</button>
+    <button class="preset-btn" onclick="loadPreset('building')">Building</button>
+    <button class="preset-btn" onclick="loadPreset('pole')">Pole / Mast</button>
+  </div>
+
+  <div class="app-layout">
+    <div>
+
+      <div class="section">
+        <div class="section-label">Mission metadata <span class="sa open" id="sa-meta" onclick="toggleSec('meta')">&#x203a;</span></div>
+        <div class="collapsible" id="sec-meta" style="max-height:400px">
+          <div class="grid-3" style="margin-bottom:10px">
+            <div class="field"><label>Operator</label><input type="text" id="metaOperator" placeholder="Your name" oninput="onChange()"></div>
+            <div class="field"><label>Site / asset</label><input type="text" id="metaSite" placeholder="Site name" oninput="onChange()"></div>
+            <div class="field"><label>Date</label><input type="text" id="metaDate" readonly></div>
+          </div>
+          <div class="field"><label>Notes</label><textarea id="metaNotes" placeholder="Optional mission notes&hellip;" oninput="onChange()"></textarea></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Structure center</div>
+        <div class="grid-2">
+          <div class="field"><label>Latitude</label><input type="number" id="lat" value="58.92045759696814" step="0.000001" oninput="onChange()"></div>
+          <div class="field"><label>Longitude</label><input type="number" id="lon" value="5.7362006464208575" step="0.000001" oninput="onChange()"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Orbit parameters</div>
+        <div class="grid-3">
+          <div class="field"><label>Global radius (m)</label><input type="number" id="radius" value="6.6" step="0.1" min="1" oninput="onChange()"></div>
+          <div class="field"><label>Waypoints / ring</label><input type="number" id="wpPerRing" value="12" step="1" min="4" max="72" oninput="onChange()"></div>
+          <div class="field"><label>Speed (m/s)</label><input type="number" id="speed" value="2" step="0.5" min="0.5" max="15" oninput="onChange()"></div>
+        </div>
+        <div class="grid-3 mt10">
+          <div class="field"><label>Start angle (&deg;)</label><input type="number" id="startAngle" value="0" step="5" min="0" max="359" oninput="onChange()"></div>
+          <div class="field">
+            <label>Direction</label>
+            <div class="seg">
+              <button class="seg-btn on" id="dir-CW"  onclick="setDir('CW')">CW</button>
+              <button class="seg-btn"    id="dir-CCW" onclick="setDir('CCW')">CCW</button>
+            </div>
+          </div>
+          <div class="field"><label>Stagger angle (&deg;)</label><input type="number" id="staggerAngle" value="15" step="5" min="0" max="90" oninput="onChange()"></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Stagger rings &mdash; offset start angle per ring for better reconstruction</span>
+          <div class="toggle" id="tog-stagger" onclick="togStagger()"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Altitude rings</div>
+        <div id="rings-container"></div>
+        <button class="btn-add" onclick="addRing()">+ add ring</button>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Nadir shot &mdash; overhead, gimbal &minus;90&deg;</span>
+        <div class="toggle on" id="tog-nadir" onclick="togNadir()"></div>
+      </div>
+      <div id="nadir-field" class="mt8" style="margin-bottom:8px">
+        <div class="field" style="max-width:200px">
+          <label>Nadir altitude (m)</label>
+          <input type="number" id="nadirAlt" value="15" step="1" min="1" oninput="onChange()">
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="section">
+        <div class="section-label">Camera &amp; capture <span class="sa open" id="sa-cam" onclick="toggleSec('cam')">&#x203a;</span></div>
+        <div class="collapsible" id="sec-cam" style="max-height:500px">
+          <div class="grid-2" style="margin-bottom:10px">
+            <div class="field">
+              <label>Camera preset</label>
+              <select id="cameraPreset" onchange="onChange()">
+                <option value="custom">Custom</option>
+                <option value="x7_24">DJI Zenmuse X7 24mm</option>
+                <option value="x7_35">DJI Zenmuse X7 35mm</option>
+                <option value="p1_35">DJI Zenmuse P1 35mm</option>
+                <option value="p1_50">DJI Zenmuse P1 50mm</option>
+                <option value="m3e">DJI Mavic 3E (4/3")</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Trigger mode</label>
+              <div class="seg">
+                <button class="seg-btn on" id="trig-waypoint" onclick="setTrig('waypoint')">Waypoint</button>
+                <button class="seg-btn"    id="trig-interval" onclick="setTrig('interval')">Interval</button>
+              </div>
+            </div>
+          </div>
+          <div id="interval-field" style="display:none;margin-bottom:10px">
+            <div class="field" style="max-width:200px">
+              <label>Photo interval (s)</label>
+              <input type="number" id="photoInterval" value="2" step="0.5" min="0.5" max="30" oninput="onChange()">
+            </div>
+          </div>
+          <div class="field mt10">
+            <label>Yaw / heading mode</label>
+            <div class="seg">
+              <button class="seg-btn on" id="yaw-towardPOI"    onclick="setYaw('towardPOI')">Toward POI</button>
+              <button class="seg-btn"    id="yaw-tangent"      onclick="setYaw('tangent')">Tangent</button>
+              <button class="seg-btn"    id="yaw-fixedHeading" onclick="setYaw('fixedHeading')">Fixed</button>
+            </div>
+          </div>
+          <div id="fixedhdg-field" style="display:none;margin-top:8px">
+            <div class="field" style="max-width:200px">
+              <label>Fixed heading (&deg;)</label>
+              <input type="number" id="fixedHeading" value="0" step="5" min="0" max="359" oninput="onChange()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Safety constraints <span class="sa open" id="sa-safety" onclick="toggleSec('safety')">&#x203a;</span></div>
+        <div class="collapsible" id="sec-safety" style="max-height:400px">
+          <div class="grid-3">
+            <div class="field"><label>Min altitude (m)</label><input type="number" id="minAlt" value="1" step="1" min="0" oninput="onChange()"></div>
+            <div class="field"><label>Max altitude (m)</label><input type="number" id="maxAlt" value="400" step="5" oninput="onChange()"></div>
+            <div class="field"><label>Max speed (m/s)</label><input type="number" id="maxSpeed" value="15" step="0.5" min="0.5" oninput="onChange()"></div>
+          </div>
+          <div class="toggle-row mt10">
+            <span class="toggle-label">Geofence &mdash; block export if waypoints exceed radius</span>
+            <div class="toggle" id="tog-gf" onclick="togGF()"></div>
+          </div>
+          <div id="gf-field" style="display:none;margin-top:8px">
+            <div class="field" style="max-width:200px">
+              <label>Geofence radius (m)</label>
+              <input type="number" id="geofenceRadius" value="50" step="5" min="1" oninput="onChange()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="sidebar">
+
+      <div class="map-wrap">
+        <div class="map-hdr">
+          <span class="map-hdr-title">Mission preview</span>
+          <span style="font-size:10px;color:var(--text3)" id="map-scale"></span>
+        </div>
+        <canvas id="mapCanvas" width="360" height="360"></canvas>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-label">Waypoints</div><div class="stat-value" id="s-total">0</div></div>
+        <div class="stat"><div class="stat-label">Orbit WPs</div><div class="stat-value" id="s-orbit">0</div></div>
+        <div class="stat"><div class="stat-label">Rings</div><div class="stat-value" id="s-rings">0</div></div>
+        <div class="stat"><div class="stat-label">Photos</div><div class="stat-value" id="s-photos">0</div></div>
+        <div class="stat"><div class="stat-label">Distance</div><div class="stat-value" id="s-dist">&mdash;</div></div>
+        <div class="stat"><div class="stat-label">Est. time</div><div class="stat-value" id="s-time">&mdash;</div></div>
+      </div>
+
+      <div id="err-container" class="err-list"></div>
+
+      <div>
+        <div class="section-label" style="margin-bottom:7px">Output format</div>
+        <div class="fmt-tabs">
+          <button class="fmt-tab on" id="fmt-airhub" onclick="setFmt('airhub')">AirHub</button>
+          <button class="fmt-tab"    id="fmt-kml"    onclick="setFmt('kml')">KML</button>
+          <button class="fmt-tab"    id="fmt-csv"    onclick="setFmt('csv')">CSV</button>
+        </div>
+      </div>
+
+      <button class="btn-preview" onclick="previewOutput()">
+        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        Preview output
+      </button>
+      <button class="btn-generate" id="btn-gen" onclick="generate()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Generate &amp; download
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-bg" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="modal-title">Output preview</span>
+      <button class="btn-icon" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body"><pre class="code-pre" id="modal-body"></pre></div>
+    <div class="modal-ftr">
+      <button class="btn-icon" onclick="copyModal()">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy
+      </button>
+      <button class="btn-icon" onclick="generate();closeModal()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download
+      </button>
+      <button class="btn-icon" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const RING_COLORS = ['#4a9eff','#3ddc84','#f5a623','#ff6b6b','#a78bfa','#34d399','#fb923c','#60a5fa'];
+const RING_LABELS = ['A','B','C','D','E','F','G','H'];
+
+const PRESETS = {
+  tower: {
+    globalRadius:8, wpPerRing:12, speed:2, startAngle:0,
+    orbitDir:'CW', stagger:true, staggerAngle:15,
+    nadir:true, nadirAlt:20,
+    rings:[{alt:5,pitch:-15,radius:null},{alt:12,pitch:-30,radius:null},{alt:20,pitch:-45,radius:null},{alt:30,pitch:-60,radius:null}]
+  },
+  flareStack: {
+    globalRadius:15, wpPerRing:16, speed:2.5, startAngle:0,
+    orbitDir:'CW', stagger:true, staggerAngle:22,
+    nadir:false, nadirAlt:40,
+    rings:[{alt:10,pitch:-20,radius:null},{alt:25,pitch:-35,radius:null},{alt:45,pitch:-50,radius:null}]
+  },
+  building: {
+    globalRadius:25, wpPerRing:20, speed:3, startAngle:0,
+    orbitDir:'CW', stagger:false, staggerAngle:15,
+    nadir:true, nadirAlt:60,
+    rings:[{alt:8,pitch:-10,radius:null},{alt:20,pitch:-20,radius:null},{alt:35,pitch:-35,radius:null},{alt:50,pitch:-50,radius:null}]
+  },
+  pole: {
+    globalRadius:4, wpPerRing:10, speed:1.5, startAngle:0,
+    orbitDir:'CW', stagger:true, staggerAngle:18,
+    nadir:true, nadirAlt:10,
+    rings:[{alt:3,pitch:-15,radius:null},{alt:7,pitch:-35,radius:null},{alt:12,pitch:-55,radius:null}]
+  }
+};
+
+// ── Configuration constants ──────────────────────────────────────────────────
+
+const MAX_RECOMMENDED_WPS_PER_RING = 36;
+const HISTORY_SAVE_DEBOUNCE_MS     = 700;
+const PREVIEW_MAX_LENGTH           = 12000;
+
+// ── App state ────────────────────────────────────────────────────────────────
+
+let rings    = [{alt:3,pitch:-15,radius:null},{alt:7,pitch:-30,radius:null},{alt:12,pitch:-55,radius:null}];
+let orbitDir = 'CW';
+let stagger  = false;
+let nadir    = true;
+let geofence = false;
+let yawMode  = 'towardPOI';
+let trigMode = 'waypoint';
+let outFmt   = 'airhub';
+
+let hist = [], histIdx = -1;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const $   = id => document.getElementById(id);
+const num = id => +$(id).value || 0;
+
+function destinationPoint(lon, lat, bearDeg, distM) {
+  const R=6371000, d=distM/R, b=bearDeg*Math.PI/180;
+  const phi1=lat*Math.PI/180, lam1=lon*Math.PI/180;
+  const phi2=Math.asin(Math.sin(phi1)*Math.cos(d)+Math.cos(phi1)*Math.sin(d)*Math.cos(b));
+  const lam2=lam1+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(phi1),Math.cos(d)-Math.sin(phi1)*Math.sin(phi2));
+  return {lon:lam2*180/Math.PI, lat:phi2*180/Math.PI};
+}
+
+function bearingTo(lon1,lat1,lon2,lat2) {
+  const dL=(lon2-lon1)*Math.PI/180, la1=lat1*Math.PI/180, la2=lat2*Math.PI/180;
+  return (Math.atan2(Math.cos(la2)*Math.sin(dL),Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dL))*180/Math.PI+360)%360;
+}
+
+function haversine(lon1,lat1,lon2,lat2) {
+  const R=6371000;
+  const dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+const nowISO = () => new Date().toISOString();
+
+// ── History ──────────────────────────────────────────────────────────────────
+
+function snapshot() {
+  const ids=['lat','lon','radius','wpPerRing','speed','startAngle','staggerAngle',
+    'nadirAlt','minAlt','maxAlt','maxSpeed','geofenceRadius','photoInterval',
+    'fixedHeading','metaOperator','metaSite','metaNotes','cameraPreset'];
+  return JSON.stringify({
+    rings, orbitDir, stagger, nadir, geofence, yawMode, trigMode,
+    f: ids.reduce((o,id)=>{o[id]=$(id)?$(id).value:'';return o;},{})
+  });
+}
+
+function saveHist() {
+  const s=snapshot();
+  if (hist[histIdx]===s) return;
+  hist=hist.slice(0,histIdx+1);
+  hist.push(s); histIdx=hist.length-1;
+  refreshUR();
+}
+
+function applySnap(s) {
+  const p=JSON.parse(s);
+  rings=p.rings; orbitDir=p.orbitDir; stagger=p.stagger;
+  nadir=p.nadir; geofence=p.geofence; yawMode=p.yawMode; trigMode=p.trigMode;
+  for (const [id,val] of Object.entries(p.f)) { if($(id)) $(id).value=val; }
+  applyUI(); renderRings();
+}
+
+function undo() { if(histIdx>0){histIdx--;applySnap(hist[histIdx]);refreshUR();} }
+function redo() { if(histIdx<hist.length-1){histIdx++;applySnap(hist[histIdx]);refreshUR();} }
+function refreshUR() {
+  $('btn-undo').disabled=histIdx<=0;
+  $('btn-redo').disabled=histIdx>=hist.length-1;
+}
+
+// ── UI sync ──────────────────────────────────────────────────────────────────
+
+function applyUI() {
+  $('tog-nadir').className='toggle'+(nadir?' on':'');
+  $('nadir-field').style.display=nadir?'block':'none';
+  $('tog-stagger').className='toggle'+(stagger?' on':'');
+  $('dir-CW').className='seg-btn'+(orbitDir==='CW'?' on':'');
+  $('dir-CCW').className='seg-btn'+(orbitDir==='CCW'?' on':'');
+  ['towardPOI','tangent','fixedHeading'].forEach(m=>$('yaw-'+m).className='seg-btn'+(yawMode===m?' on':''));
+  $('fixedhdg-field').style.display=yawMode==='fixedHeading'?'block':'none';
+  $('trig-waypoint').className='seg-btn'+(trigMode==='waypoint'?' on':'');
+  $('trig-interval').className='seg-btn'+(trigMode==='interval'?' on':'');
+  $('interval-field').style.display=trigMode==='interval'?'block':'none';
+  $('tog-gf').className='toggle'+(geofence?' on':'');
+  $('gf-field').style.display=geofence?'block':'none';
+}
+
+// ── Toggles ──────────────────────────────────────────────────────────────────
+
+function togNadir()   { nadir=!nadir;     applyUI(); onChange(); }
+function togStagger() { stagger=!stagger; applyUI(); onChange(); }
+function togGF()      { geofence=!geofence; applyUI(); onChange(); }
+function setDir(d)    { orbitDir=d;  applyUI(); onChange(); }
+function setYaw(m)    { yawMode=m;   applyUI(); onChange(); }
+function setTrig(m)   { trigMode=m;  applyUI(); onChange(); }
+
+function setFmt(f) {
+  outFmt=f;
+  ['airhub','kml','csv'].forEach(x=>$('fmt-'+x).className='fmt-tab'+(x===f?' on':''));
+}
+
+function toggleSec(key) {
+  const body=$('sec-'+key), arrow=$('sa-'+key);
+  const open=!body.classList.contains('closed');
+  body.classList.toggle('closed',open);
+  body.style.maxHeight=open?'0':'600px';
+  arrow.classList.toggle('open',!open);
+}
+
+// ── Rings ────────────────────────────────────────────────────────────────────
+
+function renderRings() {
+  const c=$('rings-container'); c.innerHTML='';
+  const gR=num('radius')||6.6;
+  rings.forEach((r,i)=>{
+    const col=RING_COLORS[i%RING_COLORS.length];
+    const div=document.createElement('div');
+    div.className='ring-card';
+    div.innerHTML=`
+      <div class="ring-head">
+        <span class="ring-name"><span class="ring-dot" style="background:${col}"></span>Ring ${RING_LABELS[i]||i+1}</span>
+        <div class="ring-acts">
+          <button class="btn-xs" onclick="dupRing(${i})">&#x2295; Dup</button>
+          <button class="btn-xs danger" onclick="remRing(${i})" ${rings.length<=1?'disabled':''}>&#x2715;</button>
+        </div>
+      </div>
+      <div class="ring-grid">
+        <div class="field"><label>Altitude (m)</label>
+          <input type="number" value="${r.alt}" step="1" min="1"
+            oninput="rings[${i}].alt=+this.value;onChange()"></div>
+        <div class="field"><label>Gimbal pitch (&deg;)</label>
+          <input type="number" value="${r.pitch}" step="5" min="-90" max="0"
+            oninput="rings[${i}].pitch=+this.value;onChange()"></div>
+        <div class="field"><label>Radius override (m)</label>
+          <input type="number" value="${r.radius!=null?r.radius:''}" step="0.1" min="1"
+            placeholder="global (${gR})"
+            oninput="rings[${i}].radius=this.value===''?null:+this.value;onChange()"></div>
+      </div>`;
+    c.appendChild(div);
+  });
+  updateStats();
+}
+
+function addRing() {
+  const last=rings.length?rings[rings.length-1].alt+5:5;
+  rings.push({alt:last,pitch:-45,radius:null});
+  renderRings(); saveHist();
+}
+function remRing(i) {
+  if(rings.length<=1) return;
+  rings.splice(i,1); renderRings(); saveHist();
+}
+function dupRing(i) {
+  rings.splice(i+1,0,{...rings[i],alt:rings[i].alt+5});
+  renderRings(); saveHist();
+}
+
+// ── Waypoint computation ─────────────────────────────────────────────────────
+
+function orbitPoints(cLon,cLat,radius,n,sa,ri) {
+  const off=stagger?ri*(num('staggerAngle')||0):0;
+  return Array.from({length:n},(_,j)=>{
+    const raw=sa+off+(orbitDir==='CW'?(j/n)*360:-(j/n)*360);
+    return destinationPoint(cLon,cLat,((raw%360)+360)%360,radius);
+  });
+}
+
+function wpHeading(pt,cLon,cLat) {
+  if (yawMode==='towardPOI') return null;
+  if (yawMode==='tangent') {
+    const b=bearingTo(cLon,cLat,pt.lon,pt.lat);
+    return ((b+(orbitDir==='CW'?90:-90))+360)%360;
+  }
+  return num('fixedHeading');
+}
+
+function makeActions(pitch,trigger) {
+  const a=[{type:"gimbalRotate",order:0,parameters:{gimbalRotate:{pitch,roll:0,yaw:0}}}];
+  if(trigger) a.push({type:"takePhoto",order:1});
+  return a;
+}
+
+function buildWaypoints() {
+  const cLat=num('lat')||58.92045759696814;
+  const cLon=num('lon')||5.7362006464208575;
+  const gR=num('radius')||6.6;
+  const n=Math.max(4,num('wpPerRing')||12);
+  const spd=Math.max(0.5,num('speed')||2);
+  const sa=num('startAngle')||0;
+  const poi={lon:cLon,lat:cLat};
+  const firstR=(rings[0]&&rings[0].radius!=null)?rings[0].radius:gR;
+  const fp=orbitPoints(cLon,cLat,firstR,n,sa,0);
+  const wps=[];
+
+  wps.push({location:{lon:fp[0].lon,lat:fp[0].lat,alt:0},waypointType:"takeOff",headingMode:"followWayline",heading:0,speed:spd});
+
+  rings.forEach(({alt,pitch,radius},ri)=>{
+    const r=radius!=null?radius:gR;
+    orbitPoints(cLon,cLat,r,n,sa,ri).forEach(pt=>{
+      const hdg=wpHeading(pt,cLon,cLat);
+      const wp={
+        location:{lon:pt.lon,lat:pt.lat,alt},
+        waypointType:"waypoint",
+        headingMode:yawMode==='towardPOI'?"towardPOI":"custom",
+        heading:hdg??0, speed:spd,
+        actions:makeActions(pitch,trigMode==='waypoint')
+      };
+      if(yawMode==='towardPOI') wp.poiCoordinate=poi;
+      wps.push(wp);
+    });
+  });
+
+  if(nadir) {
+    const nA=num('nadirAlt')||15;
+    wps.push({location:{lon:cLon,lat:cLat,alt:nA},waypointType:"waypoint",headingMode:"followWayline",heading:0,speed:spd,actions:makeActions(-90,trigMode==='waypoint')});
+  }
+  return wps;
+}
+
+// ── Estimates ────────────────────────────────────────────────────────────────
+
+function estimateMission(wps,spd) {
+  let dist=0;
+  for(let i=1;i<wps.length;i++){
+    const a=wps[i-1].location, b=wps[i].location;
+    const h=haversine(a.lon,a.lat,b.lon,b.lat);
+    const v=Math.abs(b.alt-a.alt);
+    dist+=Math.sqrt(h*h+v*v);
+  }
+  return {dist:Math.round(dist),dur:Math.round(dist/spd)};
+}
+
+// ── Validation ───────────────────────────────────────────────────────────────
+
+function validate() {
+  const errs=[],warns=[];
+  const spd=num('speed'),minA=num('minAlt'),maxA=num('maxAlt'),maxSpd=num('maxSpeed'),gR=num('radius');
+
+  if(spd<0.5)  errs.push('Speed too low (min 0.5 m/s)');
+  if(spd>maxSpd) errs.push('Speed '+spd+' m/s exceeds max '+maxSpd+' m/s');
+  if(gR<1)     errs.push('Global radius must be \u2265 1 m');
+
+  rings.forEach((r,i)=>{
+    const lbl=RING_LABELS[i]||i+1;
+    if(r.alt<minA)  errs.push('Ring '+lbl+': altitude '+r.alt+'m below min '+minA+'m');
+    if(r.alt>maxA)  errs.push('Ring '+lbl+': altitude '+r.alt+'m exceeds max '+maxA+'m');
+    if(r.radius!=null&&r.radius<1) errs.push('Ring '+lbl+': radius must be \u2265 1 m');
+  });
+
+  const alts=rings.map(r=>r.alt);
+  const dups=[...new Set(alts.filter((a,i)=>alts.indexOf(a)!==i))];
+  if(dups.length) warns.push('Duplicate ring altitudes: '+dups.join(', ')+'m');
+
+  if(nadir){
+    const nA=num('nadirAlt');
+    if(nA<minA) errs.push('Nadir altitude '+nA+'m below min '+minA+'m');
+    if(nA>maxA) errs.push('Nadir altitude '+nA+'m exceeds max '+maxA+'m');
+  }
+
+  if(geofence){
+    const gfR=num('geofenceRadius');
+    rings.forEach((r,i)=>{
+      const rr=r.radius??gR;
+      if(rr>gfR) errs.push('Ring '+(RING_LABELS[i]||i+1)+': radius '+rr+'m exceeds geofence '+gfR+'m');
+    });
+  }
+
+  if(num('wpPerRing')>MAX_RECOMMENDED_WPS_PER_RING) warns.push(num('wpPerRing')+' WPs/ring is high \u2014 most controllers cap at '+MAX_RECOMMENDED_WPS_PER_RING);
+
+  return {errs,warns};
+}
+
+// ── Stats update ─────────────────────────────────────────────────────────────
+
+function updateStats() {
+  const n=Math.max(4,num('wpPerRing')||12);
+  const spd=Math.max(0.5,num('speed')||2);
+  const orbit=rings.length*n;
+  $('s-total').textContent=1+orbit+(nadir?1:0);
+  $('s-orbit').textContent=orbit;
+  $('s-rings').textContent=rings.length;
+  $('s-photos').textContent=orbit+(nadir?1:0);
+
+  try {
+    const wps=buildWaypoints();
+    const {dist,dur}=estimateMission(wps,spd);
+    $('s-dist').innerHTML=dist+'<span class="stat-unit">m</span>';
+    const m=Math.floor(dur/60),s=dur%60;
+    $('s-time').innerHTML=m>0?m+'<span class="stat-unit">m</span>'+s+'<span class="stat-unit">s</span>':s+'<span class="stat-unit">s</span>';
+  } catch(_) {
+    $('s-dist').innerHTML='\u2014'; $('s-time').innerHTML='\u2014';
+  }
+
+  const {errs,warns}=validate();
+  const ec=$('err-container'); ec.innerHTML='';
+  errs.forEach(msg=>{const el=document.createElement('div');el.className='err-item';el.textContent='\u26a0 '+msg;ec.appendChild(el);});
+  warns.forEach(msg=>{const el=document.createElement('div');el.className='err-item warn-item';el.textContent='\u2691 '+msg;ec.appendChild(el);});
+  $('btn-gen').disabled=errs.length>0;
+  drawMap();
+}
+
+let changeTimer;
+function onChange() {
+  updateStats();
+  clearTimeout(changeTimer);
+  changeTimer=setTimeout(saveHist,HISTORY_SAVE_DEBOUNCE_MS);
+}
+
+// ── Map drawing ──────────────────────────────────────────────────────────────
+
+function drawMap() {
+  const canvas=$('mapCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,pad=28;
+  const gR=num('radius')||6.6;
+  const n=Math.max(4,num('wpPerRing')||12);
+  const sa=num('startAngle')||0;
+  const maxR=Math.max(gR,...rings.map(r=>r.radius??gR),geofence?num('geofenceRadius'):0);
+  const scale=(Math.min(W,H)/2-pad)/maxR;
+  $('map-scale').textContent='1 px \u2248 '+(1/scale).toFixed(1)+' m';
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0d0f11'; ctx.fillRect(0,0,W,H);
+
+  for(let i=1;i<=4;i++){
+    ctx.beginPath(); ctx.arc(cx,cy,maxR/4*i*scale,0,Math.PI*2);
+    ctx.strokeStyle='#1e2328'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#2a2f36'; ctx.font='9px monospace';
+    ctx.fillText(Math.round(maxR/4*i)+'m',cx+maxR/4*i*scale+3,cy-3);
+  }
+
+  ctx.strokeStyle='#1e2328'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(cx,pad); ctx.lineTo(cx,H-pad); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad,cy); ctx.lineTo(W-pad,cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle='#565c66'; ctx.font='9px monospace'; ctx.fillText('N',cx-3,pad-3);
+  ctx.beginPath(); ctx.moveTo(cx,pad+2); ctx.lineTo(cx-3,pad+9); ctx.lineTo(cx+3,pad+9); ctx.closePath();
+  ctx.fillStyle='#353c45'; ctx.fill();
+
+  if(geofence){
+    const gfR=num('geofenceRadius');
+    ctx.beginPath(); ctx.arc(cx,cy,gfR*scale,0,Math.PI*2);
+    ctx.strokeStyle='#f5a623'; ctx.lineWidth=1; ctx.setLineDash([6,3]); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  rings.forEach((ring,ri)=>{
+    const r=(ring.radius??gR)*scale;
+    const col=RING_COLORS[ri%RING_COLORS.length];
+    const off=stagger?ri*(num('staggerAngle')||0):0;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle=col+'44'; ctx.lineWidth=1.5; ctx.stroke();
+    for(let j=0;j<n;j++){
+      const raw=sa+off+(orbitDir==='CW'?(j/n)*360:-(j/n)*360);
+      const deg=((raw%360)+360)%360;
+      const rad=(deg-90)*Math.PI/180;
+      const px=cx+r*Math.cos(rad), py=cy+r*Math.sin(rad);
+      ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2); ctx.fillStyle=col; ctx.fill();
+      if(j===0){ ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.stroke(); }
+    }
+    const la=(sa+off-90)*Math.PI/180;
+    ctx.fillStyle=col; ctx.font='9px monospace';
+    ctx.fillText(ring.alt+'m',cx+r*Math.cos(la)+5,cy+r*Math.sin(la)-3);
+  });
+
+  if(nadir){
+    ctx.beginPath(); ctx.arc(cx,cy,4,0,Math.PI*2); ctx.fillStyle='#8b9099'; ctx.fill();
+    ctx.fillStyle='#8b9099'; ctx.font='9px monospace'; ctx.fillText('\u2295',cx+7,cy+4);
+  }
+
+  ctx.strokeStyle='#4a9eff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(cx-6,cy); ctx.lineTo(cx+6,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy-6); ctx.lineTo(cx,cy+6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fillStyle='#4a9eff'; ctx.fill();
+}
+
+// ── Output serializers ───────────────────────────────────────────────────────
+
+function toAirHub(wps) {
+  const meta={generatedAt:nowISO()};
+  const op=$('metaOperator').value,site=$('metaSite').value,notes=$('metaNotes').value;
+  if(op) meta.operator=op; if(site) meta.site=site; if(notes) meta.notes=notes;
+  return JSON.stringify({meta,waypoints:wps},null,2);
+}
+
+function toKML(wps) {
+  const site=$('metaSite').value||'AirHub Mission';
+  const lines=[
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
+    '  <name>'+site+'</name>',
+    '  <description>Generated: '+nowISO()+'</description>',
+    '  <Style id="wp"><IconStyle><scale>0.8</scale></IconStyle></Style>',
+    '  <Style id="path"><LineStyle><color>ff4a9eff</color><width>2</width></LineStyle></Style>'
+  ];
+  wps.forEach(function(wp,i){
+    var p=wp.actions&&wp.actions[0]&&wp.actions[0].parameters?wp.actions[0].parameters.gimbalRotate.pitch:'';
+    lines.push(
+      '  <Placemark><styleUrl>#wp</styleUrl>',
+      '    <name>WP'+(i+1)+' '+wp.waypointType+'</name>',
+      '    <description>alt:'+wp.location.alt+'m pitch:'+p+'deg spd:'+wp.speed+'m/s</description>',
+      '    <Point><altitudeMode>relativeToGround</altitudeMode>',
+      '      <coordinates>'+wp.location.lon+','+wp.location.lat+','+wp.location.alt+'</coordinates>',
+      '    </Point></Placemark>'
+    );
+  });
+  lines.push(
+    '  <Placemark><styleUrl>#path</styleUrl><name>Flight path</name>',
+    '    <LineString><altitudeMode>relativeToGround</altitudeMode>',
+    '      <coordinates>'+wps.map(function(w){return w.location.lon+','+w.location.lat+','+w.location.alt;}).join(' ')+'</coordinates>',
+    '    </LineString></Placemark>',
+    '</Document></kml>'
+  );
+  return lines.join('\n');
+}
+
+function toCSV(wps) {
+  var rows=['index,type,latitude,longitude,altitude_m,pitch_deg,heading_deg,heading_mode,speed_mps,trigger'];
+  wps.forEach(function(wp,i){
+    var pitch=wp.actions&&wp.actions[0]&&wp.actions[0].parameters?wp.actions[0].parameters.gimbalRotate.pitch:'';
+    var trig=wp.actions&&wp.actions.some(function(a){return a.type==='takePhoto';})?'photo':'none';
+    rows.push([i+1,wp.waypointType,wp.location.lat.toFixed(8),wp.location.lon.toFixed(8),
+      wp.location.alt,pitch,wp.heading,wp.headingMode,wp.speed,trig].join(','));
+  });
+  return rows.join('\n');
+}
+
+function buildOutput() {
+  var wps=buildWaypoints();
+  if(outFmt==='airhub') return {content:toAirHub(wps),ext:'json',mime:'application/json'};
+  if(outFmt==='kml')    return {content:toKML(wps),   ext:'kml', mime:'application/vnd.google-earth.kml+xml'};
+  if(outFmt==='csv')    return {content:toCSV(wps),   ext:'csv', mime:'text/csv'};
+}
+
+// ── Presets ──────────────────────────────────────────────────────────────────
+
+function loadPreset(name) {
+  var p=PRESETS[name]; if(!p) return;
+  rings=p.rings.map(function(r){return Object.assign({},r);});
+  nadir=p.nadir; stagger=p.stagger; orbitDir=p.orbitDir;
+  $('radius').value=p.globalRadius; $('wpPerRing').value=p.wpPerRing;
+  $('speed').value=p.speed; $('startAngle').value=p.startAngle;
+  $('staggerAngle').value=p.staggerAngle; $('nadirAlt').value=p.nadirAlt;
+  document.querySelectorAll('.preset-btn').forEach(function(b){b.classList.remove('active');});
+  var btn=document.querySelector('.preset-btn[onclick="loadPreset(\''+name+'\')"]');
+  if(btn) btn.classList.add('active');
+  applyUI(); renderRings(); saveHist();
+}
+
+// ── Settings export / import ─────────────────────────────────────────────────
+
+function exportSettings() {
+  var s=JSON.parse(snapshot());
+  var out=JSON.stringify(Object.assign({version:2,exportedAt:nowISO()},s),null,2);
+  dlBlob(out,'application/json','airhub_settings_'+nowISO().slice(0,10)+'.json');
+  flash('\u2713 Settings exported');
+}
+
+function importSettings(input) {
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try {
+      var s=JSON.parse(e.target.result);
+      if(!s.rings) throw new Error('Invalid settings file: missing rings property');
+      applySnap(JSON.stringify(s));
+      saveHist(); flash('\u2713 Settings imported');
+    } catch(_) { flash('\u2715 Invalid settings file'); }
+  };
+  reader.readAsText(file); input.value='';
+}
+
+// ── Generate ─────────────────────────────────────────────────────────────────
+
+function generate() {
+  if(validate().errs.length) return;
+  var o=buildOutput();
+  var site=($('metaSite').value||'airhub').replace(/\s+/g,'_');
+  dlBlob(o.content,o.mime,site+'_mission_'+nowISO().slice(0,10)+'.'+o.ext);
+  flash('\u2713 '+o.ext.toUpperCase()+' mission downloaded');
+}
+
+function dlBlob(content,mime,filename) {
+  var blob=new Blob([content],{type:mime});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Preview modal ────────────────────────────────────────────────────────────
+
+function previewOutput() {
+  var o=buildOutput();
+  $('modal-title').textContent='Output preview \u2014 '+o.ext.toUpperCase();
+  $('modal-body').textContent=o.content.length>PREVIEW_MAX_LENGTH?o.content.slice(0,PREVIEW_MAX_LENGTH)+'\n\n\u2026 (truncated)':o.content;
+  $('modal-bg').classList.add('open');
+}
+
+function closeModal(e) {
+  if(!e||e.target===$('modal-bg')) $('modal-bg').classList.remove('open');
+}
+
+function copyModal() {
+  navigator.clipboard.writeText($('modal-body').textContent).then(function(){flash('\u2713 Copied to clipboard');});
+}
+
+// ── Flash ────────────────────────────────────────────────────────────────────
+
+var flashTimer;
+function flash(msg) {
+  var f=$('flash'); f.textContent=msg; f.classList.add('show');
+  clearTimeout(flashTimer); flashTimer=setTimeout(function(){f.classList.remove('show');},2500);
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+$('metaDate').value=new Date().toISOString().slice(0,10);
+applyUI();
+renderRings();
+saveHist();
+</script>
+</body>
+</html>
