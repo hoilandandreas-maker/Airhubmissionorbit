@@ -348,7 +348,7 @@
         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Import
         <input type="file" accept=".json" style="display:none" onchange="importSettings(this)">
       </label>
-      <div class="version">v2.0</div>
+      <div class="version">v2.1</div>
     </div>
   </div>
 
@@ -560,12 +560,10 @@
 <div class="flash" id="flash"></div>
 
 <script>
-// ── Constants ────────────────────────────────────────────────────────────────
+var RING_COLORS = ['#4a9eff','#3ddc84','#f5a623','#ff6b6b','#a78bfa','#34d399','#fb923c','#60a5fa'];
+var RING_LABELS = ['A','B','C','D','E','F','G','H'];
 
-const RING_COLORS = ['#4a9eff','#3ddc84','#f5a623','#ff6b6b','#a78bfa','#34d399','#fb923c','#60a5fa'];
-const RING_LABELS = ['A','B','C','D','E','F','G','H'];
-
-const PRESETS = {
+var PRESETS = {
   tower: {
     globalRadius:8, wpPerRing:12, speed:2, startAngle:0,
     orbitDir:'CW', stagger:true, staggerAngle:15,
@@ -592,66 +590,59 @@ const PRESETS = {
   }
 };
 
-// ── Configuration constants ──────────────────────────────────────────────────
+var MAX_RECOMMENDED_WPS_PER_RING = 36;
+var HISTORY_SAVE_DEBOUNCE_MS = 700;
+var PREVIEW_MAX_LENGTH = 12000;
 
-const MAX_RECOMMENDED_WPS_PER_RING = 36;
-const HISTORY_SAVE_DEBOUNCE_MS     = 700;
-const PREVIEW_MAX_LENGTH           = 12000;
+var rings = [{alt:3,pitch:-15,radius:null},{alt:7,pitch:-30,radius:null},{alt:12,pitch:-55,radius:null}];
+var orbitDir = 'CW';
+var stagger = false;
+var nadir = true;
+var geofence = false;
+var yawMode = 'towardPOI';
+var trigMode = 'waypoint';
+var outFmt = 'airhub';
+var hist = [], histIdx = -1;
 
-// ── App state ────────────────────────────────────────────────────────────────
-
-let rings    = [{alt:3,pitch:-15,radius:null},{alt:7,pitch:-30,radius:null},{alt:12,pitch:-55,radius:null}];
-let orbitDir = 'CW';
-let stagger  = false;
-let nadir    = true;
-let geofence = false;
-let yawMode  = 'towardPOI';
-let trigMode = 'waypoint';
-let outFmt   = 'airhub';
-
-let hist = [], histIdx = -1;
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const $   = id => document.getElementById(id);
-const num = id => +$(id).value || 0;
+var $ = function(id) { return document.getElementById(id); };
+var num = function(id) { return +($(id).value) || 0; };
 
 function destinationPoint(lon, lat, bearDeg, distM) {
-  const R=6371000, d=distM/R, b=bearDeg*Math.PI/180;
-  const phi1=lat*Math.PI/180, lam1=lon*Math.PI/180;
-  const phi2=Math.asin(Math.sin(phi1)*Math.cos(d)+Math.cos(phi1)*Math.sin(d)*Math.cos(b));
-  const lam2=lam1+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(phi1),Math.cos(d)-Math.sin(phi1)*Math.sin(phi2));
+  var R=6371000, d=distM/R, b=bearDeg*Math.PI/180;
+  var phi1=lat*Math.PI/180, lam1=lon*Math.PI/180;
+  var phi2=Math.asin(Math.sin(phi1)*Math.cos(d)+Math.cos(phi1)*Math.sin(d)*Math.cos(b));
+  var lam2=lam1+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(phi1),Math.cos(d)-Math.sin(phi1)*Math.sin(phi2));
   return {lon:lam2*180/Math.PI, lat:phi2*180/Math.PI};
 }
 
 function bearingTo(lon1,lat1,lon2,lat2) {
-  const dL=(lon2-lon1)*Math.PI/180, la1=lat1*Math.PI/180, la2=lat2*Math.PI/180;
+  var dL=(lon2-lon1)*Math.PI/180, la1=lat1*Math.PI/180, la2=lat2*Math.PI/180;
   return (Math.atan2(Math.cos(la2)*Math.sin(dL),Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dL))*180/Math.PI+360)%360;
 }
 
 function haversine(lon1,lat1,lon2,lat2) {
-  const R=6371000;
-  const dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
-  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  var R=6371000;
+  var dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-const nowISO = () => new Date().toISOString();
-
-// ── History ──────────────────────────────────────────────────────────────────
+var nowISO = function() { return new Date().toISOString(); };
 
 function snapshot() {
-  const ids=['lat','lon','radius','wpPerRing','speed','startAngle','staggerAngle',
+  var ids=['lat','lon','radius','wpPerRing','speed','startAngle','staggerAngle',
     'nadirAlt','minAlt','maxAlt','maxSpeed','geofenceRadius','photoInterval',
     'fixedHeading','metaOperator','metaSite','metaNotes','cameraPreset'];
+  var f = {};
+  ids.forEach(function(id) { f[id] = $(id) ? $(id).value : ''; });
   return JSON.stringify({
-    rings, orbitDir, stagger, nadir, geofence, yawMode, trigMode,
-    f: ids.reduce((o,id)=>{o[id]=$(id)?$(id).value:'';return o;},{})
+    rings:rings, orbitDir:orbitDir, stagger:stagger, nadir:nadir,
+    geofence:geofence, yawMode:yawMode, trigMode:trigMode, f:f
   });
 }
 
 function saveHist() {
-  const s=snapshot();
+  var s=snapshot();
   if (hist[histIdx]===s) return;
   hist=hist.slice(0,histIdx+1);
   hist.push(s); histIdx=hist.length-1;
@@ -659,10 +650,10 @@ function saveHist() {
 }
 
 function applySnap(s) {
-  const p=JSON.parse(s);
+  var p=JSON.parse(s);
   rings=p.rings; orbitDir=p.orbitDir; stagger=p.stagger;
   nadir=p.nadir; geofence=p.geofence; yawMode=p.yawMode; trigMode=p.trigMode;
-  for (const [id,val] of Object.entries(p.f)) { if($(id)) $(id).value=val; }
+  Object.keys(p.f).forEach(function(id) { if($(id)) $(id).value=p.f[id]; });
   applyUI(); renderRings();
 }
 
@@ -673,15 +664,13 @@ function refreshUR() {
   $('btn-redo').disabled=histIdx>=hist.length-1;
 }
 
-// ── UI sync ──────────────────────────────────────────────────────────────────
-
 function applyUI() {
   $('tog-nadir').className='toggle'+(nadir?' on':'');
   $('nadir-field').style.display=nadir?'block':'none';
   $('tog-stagger').className='toggle'+(stagger?' on':'');
   $('dir-CW').className='seg-btn'+(orbitDir==='CW'?' on':'');
   $('dir-CCW').className='seg-btn'+(orbitDir==='CCW'?' on':'');
-  ['towardPOI','tangent','fixedHeading'].forEach(m=>$('yaw-'+m).className='seg-btn'+(yawMode===m?' on':''));
+  ['towardPOI','tangent','fixedHeading'].forEach(function(m){$('yaw-'+m).className='seg-btn'+(yawMode===m?' on':'');});
   $('fixedhdg-field').style.display=yawMode==='fixedHeading'?'block':'none';
   $('trig-waypoint').className='seg-btn'+(trigMode==='waypoint'?' on':'');
   $('trig-interval').className='seg-btn'+(trigMode==='interval'?' on':'');
@@ -689,8 +678,6 @@ function applyUI() {
   $('tog-gf').className='toggle'+(geofence?' on':'');
   $('gf-field').style.display=geofence?'block':'none';
 }
-
-// ── Toggles ──────────────────────────────────────────────────────────────────
 
 function togNadir()   { nadir=!nadir;     applyUI(); onChange(); }
 function togStagger() { stagger=!stagger; applyUI(); onChange(); }
@@ -701,53 +688,32 @@ function setTrig(m)   { trigMode=m;  applyUI(); onChange(); }
 
 function setFmt(f) {
   outFmt=f;
-  ['airhub','kml','csv'].forEach(x=>$('fmt-'+x).className='fmt-tab'+(x===f?' on':''));
+  ['airhub','kml','csv'].forEach(function(x){$('fmt-'+x).className='fmt-tab'+(x===f?' on':'');});
 }
 
 function toggleSec(key) {
-  const body=$('sec-'+key), arrow=$('sa-'+key);
-  const open=!body.classList.contains('closed');
+  var body=$('sec-'+key), arrow=$('sa-'+key);
+  var open=!body.classList.contains('closed');
   body.classList.toggle('closed',open);
   body.style.maxHeight=open?'0':'600px';
   arrow.classList.toggle('open',!open);
 }
 
-// ── Rings ────────────────────────────────────────────────────────────────────
-
 function renderRings() {
-  const c=$('rings-container'); c.innerHTML='';
-  const gR=num('radius')||6.6;
-  rings.forEach((r,i)=>{
-    const col=RING_COLORS[i%RING_COLORS.length];
-    const div=document.createElement('div');
+  var c=$('rings-container'); c.innerHTML='';
+  var gR=num('radius')||6.6;
+  rings.forEach(function(r,i){
+    var col=RING_COLORS[i%RING_COLORS.length];
+    var div=document.createElement('div');
     div.className='ring-card';
-    div.innerHTML=`
-      <div class="ring-head">
-        <span class="ring-name"><span class="ring-dot" style="background:${col}"></span>Ring ${RING_LABELS[i]||i+1}</span>
-        <div class="ring-acts">
-          <button class="btn-xs" onclick="dupRing(${i})">&#x2295; Dup</button>
-          <button class="btn-xs danger" onclick="remRing(${i})" ${rings.length<=1?'disabled':''}>&#x2715;</button>
-        </div>
-      </div>
-      <div class="ring-grid">
-        <div class="field"><label>Altitude (m)</label>
-          <input type="number" value="${r.alt}" step="1" min="1"
-            oninput="rings[${i}].alt=+this.value;onChange()"></div>
-        <div class="field"><label>Gimbal pitch (&deg;)</label>
-          <input type="number" value="${r.pitch}" step="5" min="-90" max="0"
-            oninput="rings[${i}].pitch=+this.value;onChange()"></div>
-        <div class="field"><label>Radius override (m)</label>
-          <input type="number" value="${r.radius!=null?r.radius:''}" step="0.1" min="1"
-            placeholder="global (${gR})"
-            oninput="rings[${i}].radius=this.value===''?null:+this.value;onChange()"></div>
-      </div>`;
+    div.innerHTML='<div class="ring-head"><span class="ring-name"><span class="ring-dot" style="background:'+col+'"></span>Ring '+(RING_LABELS[i]||i+1)+'</span><div class="ring-acts"><button class="btn-xs" onclick="dupRing('+i+')">&#x2295; Dup</button><button class="btn-xs danger" onclick="remRing('+i+')" '+(rings.length<=1?'disabled':'')+'>&#x2715;</button></div></div><div class="ring-grid"><div class="field"><label>Altitude (m)</label><input type="number" value="'+r.alt+'" step="1" min="1" oninput="rings['+i+'].alt=+this.value;onChange()"></div><div class="field"><label>Gimbal pitch (&deg;)</label><input type="number" value="'+r.pitch+'" step="5" min="-90" max="0" oninput="rings['+i+'].pitch=+this.value;onChange()"></div><div class="field"><label>Radius override (m)</label><input type="number" value="'+(r.radius!=null?r.radius:'')+'" step="0.1" min="1" placeholder="global ('+gR+')" oninput="rings['+i+'].radius=this.value===\'\'?null:+this.value;onChange()"></div></div>';
     c.appendChild(div);
   });
   updateStats();
 }
 
 function addRing() {
-  const last=rings.length?rings[rings.length-1].alt+5:5;
+  var last=rings.length?rings[rings.length-1].alt+5:5;
   rings.push({alt:last,pitch:-45,radius:null});
   renderRings(); saveHist();
 }
@@ -756,59 +722,60 @@ function remRing(i) {
   rings.splice(i,1); renderRings(); saveHist();
 }
 function dupRing(i) {
-  rings.splice(i+1,0,{...rings[i],alt:rings[i].alt+5});
+  rings.splice(i+1,0,{alt:rings[i].alt+5,pitch:rings[i].pitch,radius:rings[i].radius});
   renderRings(); saveHist();
 }
 
-// ── Waypoint computation ─────────────────────────────────────────────────────
-
 function orbitPoints(cLon,cLat,radius,n,sa,ri) {
-  const off=stagger?ri*(num('staggerAngle')||0):0;
-  return Array.from({length:n},(_,j)=>{
-    const raw=sa+off+(orbitDir==='CW'?(j/n)*360:-(j/n)*360);
-    return destinationPoint(cLon,cLat,((raw%360)+360)%360,radius);
-  });
+  var off=stagger?ri*(num('staggerAngle')||0):0;
+  var pts=[];
+  for(var j=0;j<n;j++){
+    var raw=sa+off+(orbitDir==='CW'?(j/n)*360:-(j/n)*360);
+    pts.push(destinationPoint(cLon,cLat,((raw%360)+360)%360,radius));
+  }
+  return pts;
 }
 
 function wpHeading(pt,cLon,cLat) {
   if (yawMode==='towardPOI') return null;
   if (yawMode==='tangent') {
-    const b=bearingTo(cLon,cLat,pt.lon,pt.lat);
+    var b=bearingTo(cLon,cLat,pt.lon,pt.lat);
     return ((b+(orbitDir==='CW'?90:-90))+360)%360;
   }
   return num('fixedHeading');
 }
 
 function makeActions(pitch,trigger) {
-  const a=[{type:"gimbalRotate",order:0,parameters:{gimbalRotate:{pitch,roll:0,yaw:0}}}];
+  var a=[{type:"gimbalRotate",order:0,parameters:{gimbalRotate:{pitch:pitch,roll:0,yaw:0}}}];
   if(trigger) a.push({type:"takePhoto",order:1});
   return a;
 }
 
 function buildWaypoints() {
-  const cLat=num('lat')||58.92045759696814;
-  const cLon=num('lon')||5.7362006464208575;
-  const gR=num('radius')||6.6;
-  const n=Math.max(4,num('wpPerRing')||12);
-  const spd=Math.max(0.5,num('speed')||2);
-  const sa=num('startAngle')||0;
-  const poi={lon:cLon,lat:cLat};
-  const firstR=(rings[0]&&rings[0].radius!=null)?rings[0].radius:gR;
-  const fp=orbitPoints(cLon,cLat,firstR,n,sa,0);
-  const wps=[];
+  var cLat=num('lat')||58.92045759696814;
+  var cLon=num('lon')||5.7362006464208575;
+  var gR=num('radius')||6.6;
+  var n=Math.max(4,num('wpPerRing')||12);
+  var spd=Math.max(0.5,num('speed')||2);
+  var sa=num('startAngle')||0;
+  var poi={lon:cLon,lat:cLat};
+  var firstR=(rings[0]&&rings[0].radius!=null)?rings[0].radius:gR;
+  var fp=orbitPoints(cLon,cLat,firstR,n,sa,0);
+  var wps=[];
 
   wps.push({location:{lon:fp[0].lon,lat:fp[0].lat,alt:0},waypointType:"takeOff",headingMode:"followWayline",heading:0,speed:spd});
 
-  rings.forEach(({alt,pitch,radius},ri)=>{
-    const r=radius!=null?radius:gR;
-    orbitPoints(cLon,cLat,r,n,sa,ri).forEach(pt=>{
-      const hdg=wpHeading(pt,cLon,cLat);
-      const wp={
-        location:{lon:pt.lon,lat:pt.lat,alt},
+  rings.forEach(function(ring,ri){
+    var r=ring.radius!=null?ring.radius:gR;
+    orbitPoints(cLon,cLat,r,n,sa,ri).forEach(function(pt){
+      var hdg=wpHeading(pt,cLon,cLat);
+      var wp={
+        location:{lon:pt.lon,lat:pt.lat,alt:ring.alt},
         waypointType:"waypoint",
-        headingMode:yawMode==='towardPOI'?"towardPOI":"custom",
-        heading:hdg??0, speed:spd,
-        actions:makeActions(pitch,trigMode==='waypoint')
+        headingMode:yawMode==='towardPOI'?"towardPOI":"fixed",
+        heading:hdg!==null?hdg:0,
+        speed:spd,
+        actions:makeActions(ring.pitch,trigMode==='waypoint')
       };
       if(yawMode==='towardPOI') wp.poiCoordinate=poi;
       wps.push(wp);
@@ -816,118 +783,111 @@ function buildWaypoints() {
   });
 
   if(nadir) {
-    const nA=num('nadirAlt')||15;
+    var nA=num('nadirAlt')||15;
     wps.push({location:{lon:cLon,lat:cLat,alt:nA},waypointType:"waypoint",headingMode:"followWayline",heading:0,speed:spd,actions:makeActions(-90,trigMode==='waypoint')});
   }
   return wps;
 }
 
-// ── Estimates ────────────────────────────────────────────────────────────────
-
 function estimateMission(wps,spd) {
-  let dist=0;
-  for(let i=1;i<wps.length;i++){
-    const a=wps[i-1].location, b=wps[i].location;
-    const h=haversine(a.lon,a.lat,b.lon,b.lat);
-    const v=Math.abs(b.alt-a.alt);
+  var dist=0;
+  for(var i=1;i<wps.length;i++){
+    var a=wps[i-1].location, b=wps[i].location;
+    var h=haversine(a.lon,a.lat,b.lon,b.lat);
+    var v=Math.abs(b.alt-a.alt);
     dist+=Math.sqrt(h*h+v*v);
   }
   return {dist:Math.round(dist),dur:Math.round(dist/spd)};
 }
 
-// ── Validation ───────────────────────────────────────────────────────────────
-
 function validate() {
-  const errs=[],warns=[];
-  const spd=num('speed'),minA=num('minAlt'),maxA=num('maxAlt'),maxSpd=num('maxSpeed'),gR=num('radius');
+  var errs=[],warns=[];
+  var spd=num('speed'),minA=num('minAlt'),maxA=num('maxAlt'),maxSpd=num('maxSpeed'),gR=num('radius');
 
   if(spd<0.5)  errs.push('Speed too low (min 0.5 m/s)');
   if(spd>maxSpd) errs.push('Speed '+spd+' m/s exceeds max '+maxSpd+' m/s');
   if(gR<1)     errs.push('Global radius must be \u2265 1 m');
 
-  rings.forEach((r,i)=>{
-    const lbl=RING_LABELS[i]||i+1;
+  rings.forEach(function(r,i){
+    var lbl=RING_LABELS[i]||i+1;
     if(r.alt<minA)  errs.push('Ring '+lbl+': altitude '+r.alt+'m below min '+minA+'m');
     if(r.alt>maxA)  errs.push('Ring '+lbl+': altitude '+r.alt+'m exceeds max '+maxA+'m');
     if(r.radius!=null&&r.radius<1) errs.push('Ring '+lbl+': radius must be \u2265 1 m');
   });
 
-  const alts=rings.map(r=>r.alt);
-  const dups=[...new Set(alts.filter((a,i)=>alts.indexOf(a)!==i))];
+  var alts=rings.map(function(r){return r.alt;});
+  var dups=alts.filter(function(a,i){return alts.indexOf(a)!==i;});
+  dups=[...new Set(dups)];
   if(dups.length) warns.push('Duplicate ring altitudes: '+dups.join(', ')+'m');
 
   if(nadir){
-    const nA=num('nadirAlt');
+    var nA=num('nadirAlt');
     if(nA<minA) errs.push('Nadir altitude '+nA+'m below min '+minA+'m');
     if(nA>maxA) errs.push('Nadir altitude '+nA+'m exceeds max '+maxA+'m');
   }
 
   if(geofence){
-    const gfR=num('geofenceRadius');
-    rings.forEach((r,i)=>{
-      const rr=r.radius??gR;
+    var gfR=num('geofenceRadius');
+    rings.forEach(function(r,i){
+      var rr=r.radius!=null?r.radius:gR;
       if(rr>gfR) errs.push('Ring '+(RING_LABELS[i]||i+1)+': radius '+rr+'m exceeds geofence '+gfR+'m');
     });
   }
 
   if(num('wpPerRing')>MAX_RECOMMENDED_WPS_PER_RING) warns.push(num('wpPerRing')+' WPs/ring is high \u2014 most controllers cap at '+MAX_RECOMMENDED_WPS_PER_RING);
 
-  return {errs,warns};
+  return {errs:errs,warns:warns};
 }
 
-// ── Stats update ─────────────────────────────────────────────────────────────
-
 function updateStats() {
-  const n=Math.max(4,num('wpPerRing')||12);
-  const spd=Math.max(0.5,num('speed')||2);
-  const orbit=rings.length*n;
+  var n=Math.max(4,num('wpPerRing')||12);
+  var spd=Math.max(0.5,num('speed')||2);
+  var orbit=rings.length*n;
   $('s-total').textContent=1+orbit+(nadir?1:0);
   $('s-orbit').textContent=orbit;
   $('s-rings').textContent=rings.length;
   $('s-photos').textContent=orbit+(nadir?1:0);
 
   try {
-    const wps=buildWaypoints();
-    const {dist,dur}=estimateMission(wps,spd);
-    $('s-dist').innerHTML=dist+'<span class="stat-unit">m</span>';
-    const m=Math.floor(dur/60),s=dur%60;
+    var wps=buildWaypoints();
+    var est=estimateMission(wps,spd);
+    $('s-dist').innerHTML=est.dist+'<span class="stat-unit">m</span>';
+    var m=Math.floor(est.dur/60),s=est.dur%60;
     $('s-time').innerHTML=m>0?m+'<span class="stat-unit">m</span>'+s+'<span class="stat-unit">s</span>':s+'<span class="stat-unit">s</span>';
-  } catch(_) {
+  } catch(e) {
     $('s-dist').innerHTML='\u2014'; $('s-time').innerHTML='\u2014';
   }
 
-  const {errs,warns}=validate();
-  const ec=$('err-container'); ec.innerHTML='';
-  errs.forEach(msg=>{const el=document.createElement('div');el.className='err-item';el.textContent='\u26a0 '+msg;ec.appendChild(el);});
-  warns.forEach(msg=>{const el=document.createElement('div');el.className='err-item warn-item';el.textContent='\u2691 '+msg;ec.appendChild(el);});
-  $('btn-gen').disabled=errs.length>0;
+  var v=validate();
+  var ec=$('err-container'); ec.innerHTML='';
+  v.errs.forEach(function(msg){var el=document.createElement('div');el.className='err-item';el.textContent='\u26a0 '+msg;ec.appendChild(el);});
+  v.warns.forEach(function(msg){var el=document.createElement('div');el.className='err-item warn-item';el.textContent='\u2691 '+msg;ec.appendChild(el);});
+  $('btn-gen').disabled=v.errs.length>0;
   drawMap();
 }
 
-let changeTimer;
+var changeTimer;
 function onChange() {
   updateStats();
   clearTimeout(changeTimer);
   changeTimer=setTimeout(saveHist,HISTORY_SAVE_DEBOUNCE_MS);
 }
 
-// ── Map drawing ──────────────────────────────────────────────────────────────
-
 function drawMap() {
-  const canvas=$('mapCanvas');
-  const ctx=canvas.getContext('2d');
-  const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,pad=28;
-  const gR=num('radius')||6.6;
-  const n=Math.max(4,num('wpPerRing')||12);
-  const sa=num('startAngle')||0;
-  const maxR=Math.max(gR,...rings.map(r=>r.radius??gR),geofence?num('geofenceRadius'):0);
-  const scale=(Math.min(W,H)/2-pad)/maxR;
+  var canvas=$('mapCanvas');
+  var ctx=canvas.getContext('2d');
+  var W=canvas.width,H=canvas.height,cx=W/2,cy=H/2,pad=28;
+  var gR=num('radius')||6.6;
+  var n=Math.max(4,num('wpPerRing')||12);
+  var sa=num('startAngle')||0;
+  var maxR=Math.max(gR,Math.max.apply(null,rings.map(function(r){return r.radius||gR;})),geofence?num('geofenceRadius'):0);
+  var scale=(Math.min(W,H)/2-pad)/maxR;
   $('map-scale').textContent='1 px \u2248 '+(1/scale).toFixed(1)+' m';
 
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='#0d0f11'; ctx.fillRect(0,0,W,H);
 
-  for(let i=1;i<=4;i++){
+  for(var i=1;i<=4;i++){
     ctx.beginPath(); ctx.arc(cx,cy,maxR/4*i*scale,0,Math.PI*2);
     ctx.strokeStyle='#1e2328'; ctx.lineWidth=1; ctx.stroke();
     ctx.fillStyle='#2a2f36'; ctx.font='9px monospace';
@@ -944,26 +904,26 @@ function drawMap() {
   ctx.fillStyle='#353c45'; ctx.fill();
 
   if(geofence){
-    const gfR=num('geofenceRadius');
+    var gfR=num('geofenceRadius');
     ctx.beginPath(); ctx.arc(cx,cy,gfR*scale,0,Math.PI*2);
     ctx.strokeStyle='#f5a623'; ctx.lineWidth=1; ctx.setLineDash([6,3]); ctx.stroke(); ctx.setLineDash([]);
   }
 
-  rings.forEach((ring,ri)=>{
-    const r=(ring.radius??gR)*scale;
-    const col=RING_COLORS[ri%RING_COLORS.length];
-    const off=stagger?ri*(num('staggerAngle')||0):0;
+  rings.forEach(function(ring,ri){
+    var r=(ring.radius!=null?ring.radius:gR)*scale;
+    var col=RING_COLORS[ri%RING_COLORS.length];
+    var off=stagger?ri*(num('staggerAngle')||0):0;
     ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
     ctx.strokeStyle=col+'44'; ctx.lineWidth=1.5; ctx.stroke();
-    for(let j=0;j<n;j++){
-      const raw=sa+off+(orbitDir==='CW'?(j/n)*360:-(j/n)*360);
-      const deg=((raw%360)+360)%360;
-      const rad=(deg-90)*Math.PI/180;
-      const px=cx+r*Math.cos(rad), py=cy+r*Math.sin(rad);
+    for(var j=0;j<n;j++){
+      var raw=sa+off+(orbitDir==='CW'?(j/n)*360:-(j/n)*360);
+      var deg=((raw%360)+360)%360;
+      var rad=(deg-90)*Math.PI/180;
+      var px=cx+r*Math.cos(rad), py=cy+r*Math.sin(rad);
       ctx.beginPath(); ctx.arc(px,py,2.5,0,Math.PI*2); ctx.fillStyle=col; ctx.fill();
       if(j===0){ ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.stroke(); }
     }
-    const la=(sa+off-90)*Math.PI/180;
+    var la=(sa+off-90)*Math.PI/180;
     ctx.fillStyle=col; ctx.font='9px monospace';
     ctx.fillText(ring.alt+'m',cx+r*Math.cos(la)+5,cy+r*Math.sin(la)-3);
   });
@@ -979,18 +939,14 @@ function drawMap() {
   ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fillStyle='#4a9eff'; ctx.fill();
 }
 
-// ── Output serializers ───────────────────────────────────────────────────────
-
+/* ── FIX 1: AirHub export returns plain array (no wrapper object) ── */
 function toAirHub(wps) {
-  const meta={generatedAt:nowISO()};
-  const op=$('metaOperator').value,site=$('metaSite').value,notes=$('metaNotes').value;
-  if(op) meta.operator=op; if(site) meta.site=site; if(notes) meta.notes=notes;
-  return JSON.stringify({meta,waypoints:wps},null,2);
+  return JSON.stringify(wps);
 }
 
 function toKML(wps) {
-  const site=$('metaSite').value||'AirHub Mission';
-  const lines=[
+  var site=$('metaSite').value||'AirHub Mission';
+  var lines=[
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
     '  <name>'+site+'</name>',
@@ -1037,11 +993,9 @@ function buildOutput() {
   if(outFmt==='csv')    return {content:toCSV(wps),   ext:'csv', mime:'text/csv'};
 }
 
-// ── Presets ──────────────────────────────────────────────────────────────────
-
 function loadPreset(name) {
   var p=PRESETS[name]; if(!p) return;
-  rings=p.rings.map(function(r){return Object.assign({},r);});
+  rings=p.rings.map(function(r){return {alt:r.alt,pitch:r.pitch,radius:r.radius};});
   nadir=p.nadir; stagger=p.stagger; orbitDir=p.orbitDir;
   $('radius').value=p.globalRadius; $('wpPerRing').value=p.wpPerRing;
   $('speed').value=p.speed; $('startAngle').value=p.startAngle;
@@ -1052,11 +1006,10 @@ function loadPreset(name) {
   applyUI(); renderRings(); saveHist();
 }
 
-// ── Settings export / import ─────────────────────────────────────────────────
-
 function exportSettings() {
   var s=JSON.parse(snapshot());
-  var out=JSON.stringify(Object.assign({version:2,exportedAt:nowISO()},s),null,2);
+  s.version=2; s.exportedAt=nowISO();
+  var out=JSON.stringify(s,null,2);
   dlBlob(out,'application/json','airhub_settings_'+nowISO().slice(0,10)+'.json');
   flash('\u2713 Settings exported');
 }
@@ -1067,15 +1020,13 @@ function importSettings(input) {
   reader.onload=function(e){
     try {
       var s=JSON.parse(e.target.result);
-      if(!s.rings) throw new Error('Invalid settings file: missing rings property');
+      if(!s.rings) throw new Error('Invalid');
       applySnap(JSON.stringify(s));
       saveHist(); flash('\u2713 Settings imported');
-    } catch(_) { flash('\u2715 Invalid settings file'); }
+    } catch(err) { flash('\u2715 Invalid settings file'); }
   };
   reader.readAsText(file); input.value='';
 }
-
-// ── Generate ─────────────────────────────────────────────────────────────────
 
 function generate() {
   if(validate().errs.length) return;
@@ -1092,8 +1043,6 @@ function dlBlob(content,mime,filename) {
   URL.revokeObjectURL(url);
 }
 
-// ── Preview modal ────────────────────────────────────────────────────────────
-
 function previewOutput() {
   var o=buildOutput();
   $('modal-title').textContent='Output preview \u2014 '+o.ext.toUpperCase();
@@ -1109,15 +1058,11 @@ function copyModal() {
   navigator.clipboard.writeText($('modal-body').textContent).then(function(){flash('\u2713 Copied to clipboard');});
 }
 
-// ── Flash ────────────────────────────────────────────────────────────────────
-
 var flashTimer;
 function flash(msg) {
   var f=$('flash'); f.textContent=msg; f.classList.add('show');
   clearTimeout(flashTimer); flashTimer=setTimeout(function(){f.classList.remove('show');},2500);
 }
-
-// ── Init ─────────────────────────────────────────────────────────────────────
 
 $('metaDate').value=new Date().toISOString().slice(0,10);
 applyUI();
